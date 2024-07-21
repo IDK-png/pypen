@@ -14,5 +14,8 @@ def testLocalIPgetter():
 def testExternalIPgetter():
     assert SCAN.IPUtils().get_external_IP()=="10.100.102.88"
 
-x = SCAN.TCPSCAN("8.8.8.8", ttlCount=10)
-x.scan(10,startPort=53,endPort=81)
+def testPingScan():
+    assert SCAN.PINGSCAN().scan("8.8.8.8",False) == "8.8.8.8:Host-Alive"
+    assert SCAN.PINGSCAN().scan("8.14.23.8",False) != "8.14.23.8:Host-Alive"
+
+SCAN.TCPSCAN("8.8.8.8").scan(5,52,56)

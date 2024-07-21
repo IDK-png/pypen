@@ -71,13 +71,12 @@ class ARPSCAN:
             method.
         threadCount parameter in the `scan` function represents the number of threads that will be
             used to divide the scanning process. It determines how many parallel threads will be created to scan
-            the target. The target will be divided into separation based on the `threadCount` to distribute the
-            workload among
+            the target.
+
         printOut, optional
             The `printOut` parameter in the `scan` function is a boolean parameter that determines whether the
-            function should print the results to the console or return them as a value. If `printOut` is set to
-            `True`, the function will print the results to the console. If `printOut
-        
+            function should print the results to the console or not.
+
         Returns
         -------
             If the `printOut` parameter is set to `False`, the function will return `instance._ANSWERED`, which contains information about live hosts.
@@ -112,5 +111,4 @@ class ARPSCAN:
             print("______________\n  LIVE-HOSTS  \n______________")
             print(instance._ANSWERED)
 
-        else:
-            return instance._ANSWERED
+        return instance._ANSWERED
