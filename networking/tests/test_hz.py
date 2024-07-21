@@ -18,4 +18,7 @@ def testPingScan():
     assert SCAN.PINGSCAN().scan("8.8.8.8",False) == "8.8.8.8:Host-Alive"
     assert SCAN.PINGSCAN().scan("8.14.23.8",False) != "8.14.23.8:Host-Alive"
 
-SCAN.TCPSCAN("8.8.8.8").scan(5,52,56)
+targetHost = "8.8.8.8"
+if(80 in SCAN.TCPSCAN(targetHost).scan(5,79,81,False)):
+    SCAN.OSSCAN().TCPTTL(targetHost)
+    SCAN.OSSCAN().UDPTTL(targetHost)

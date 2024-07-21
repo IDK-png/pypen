@@ -3,8 +3,8 @@ import threading
 import sys
 import io
 from pypenlib.scanner.iputils import IPUtils
-class TCPSCAN:
-    def __init__(instance, dstIP, hostIP=IPUtils().get_local_IP(), ttlCount=15, timeout=0.5):
+class UDPSCAN:
+    def __init__(instance, dstIP, timeout=2):
         '''This Python function initializes an instance with default values for destination IP, host IP, TTL
         count, and timeout, setting up various attributes for network scanning using Scapy.
         
@@ -31,15 +31,16 @@ class TCPSCAN:
             is set to 0.3 seconds.
         
         '''
-        instance._HOSTIP = hostIP # Default Gateaway, ну тупа роутер мне лень это объяснять
+        instance._APPLICATION_LAYER = DNS(qd=DNSQR()) # DNS Запрос
+        instance._TRANSPORT_LAYER =  UDP()     # UDP Протокол
+        instance._INTERNET_LAYER= IP(dst=dstIP)       # IP  Маршрутизатор
 
-        instance._TRANSPORT_LAYER =  TCP(flags="S")                                       # TCP Протокол 
-        instance._NETWORK_LAYER= IP(src= IPUtils().get_external_IP(),dst=dstIP, ttl=(1,ttlCount)) # IP  Маршрутизатор 
+        instance._OPEN_PORTS = [] # Массив Открытых и Фильтрованных портов
+        instance._OF_PORTS = []   # Массив Открытых|Фильтрованных портов
 
-        instance._ANSWERED_PORTS = [] # Массив "Живых" Хостов(Добавлен сразу DefaultGateaway потому что с него отправляются ARP запросы)
-        instance._THREADS = [] # Массив Потоков
-        instance._TIMEOUT = float(timeout)
-        conf.verb = 0 # Вырубает нахуй все принты ебучего Scapy
+        instance._THREADS = []              # Массив Потоков
+        instance._TIMEOUT = float(timeout)  # Таймаут сокета
+        conf.verb = 0                       # Вырубает нахуй все принты ебучего Scapy
 
     def scanUtil(instance, startNum, endNum):
         '''This Python function scans a range of ports for a given IP address using TCP requests and prints the
@@ -60,28 +61,26 @@ class TCPSCAN:
         
         '''
         for x in range(startNum,endNum+1): # Идёт цикл с startNum до endNum, сделано так потому что данная функция делиться для много Threads для ускорения сканирования
-            TCPRequest = instance._NETWORK_LAYER/instance._TRANSPORT_LAYER # Обычный TCP пакет с flag-SYN
-            TCPRequest[TCP].dport = x
+            UDPRequest = instance._INTERNET_LAYER/instance._TRANSPORT_LAYER/instance._APPLICATION_LAYER # Обычный UDP пакет с DNS запросов 
+            UDPRequest[UDP].dport = x
 
-            ans, _ = sr(TCPRequest, timeout=instance._TIMEOUT) # Отсылается пакет, с timeout в 100 милисекунд(0.1 Секунды)
-            if ans: # Если ответ получен
-                #_____________________________ЧТЕНИЯ ОТВЕТА_____________________________
-                capture = io.StringIO()
-                save_stdout = sys.stdout
-                sys.stdout = capture
-                print(f"{ans.summary(lambda s, r: r.sprintf('{TCP:%TCP.flags%}'))}")  # noqa
-                sys.stdout = save_stdout
-                #_______________________________________________________________________
-                PACKET_ITERATOR=0 # Итератор while-цикла
-                while(PACKET_ITERATOR<3): # Из-за маленького timeout, пакет может дойти но не успеть отослать ответ, из-за этого отсылается 3 раза
-                    if("SA" in capture.getvalue()):
-                        print(f"[+]", end=""); print(x); # Принтует port который был обнаружен как "открытый"
-                        instance._ANSWERED_PORTS.append(x) # Добавь в список живых хостов, дист. айпишник из оригинального пакета
-                        break
-                    PACKET_ITERATOR+=1
+            ans,_ = sr(UDPRequest, timeout=instance._TIMEOUT, verbose=False) 
+            ans = [v for v in ans]; _ = [v for v in _]
 
+            if(len(ans)): # Если был получен ответ(UDP/ICMP)
+                for send,receive in ans:
+                    if((receive.haslayer(ICMP) and receive[ICMP].type==3 and receive[ICMP].code == 3)==False): # Если ответ не является ICMP пакетом с кодом ошибки Destination Unreachable тогда порт или open или flitered
+                            addStr = f"{x} | "
+                            if(receive.haslayer(UDP)): # Если в ответе есть UDP пакет, нету смысла проверять так как при ошибки не посылаются UDP пакеты
+                                receive[UDP].show()
+                                addStr+="open" # Порт - Open
+                            elif(receive.haslayer(ICMP)): # Если в ответе ICMP
+                                addStr+="filtered" # Порт - Filtered
+                            instance._OPEN_PORTS.append(addStr)
+            if(len(_) and instance._OPENSCAN): # Если был проигнорирован
+                instance._OF_PORTS.append(f"{x} | open-filtered") # Значит порт open-filtered
 
-    def scan(instance, threadCount, startPort=0, endPort=1500, printOut=True):
+    def scan(instance, threadCount, startPort=0, endPort=1500, scanOpenFiltered=True, printOut=True):
         '''The `scan` function in Python scans a range of ports using multiple threads and prints out the open
         ports if specified.
         
@@ -109,9 +108,10 @@ class TCPSCAN:
         
         Returns
         -------
-            The `scan` function returns the list of open ports stored in `instance._ANSWERED_PORTS`.
+            The `scan` function returns the list of open ports stored in `instance._OPEN_PORTS`.
         
         '''
+        instance._OPENSCAN = scanOpenFiltered
         if threadCount>15: 
             threadCount=15 # Не вижу смысла в больше потоках чем 15, один хуй там дело в милисекундах, ты ещё еблан на 1000 потоков его запусти
 
@@ -120,7 +120,7 @@ class TCPSCAN:
         remainder = total_numbers % threadCount
 
 
-        separation = [] # Массив который будет содержать диапазоны IP-адресов для каждого потока ввиде List
+        separation = [] # Массив который будет содержать диапазоны портов для каждого потока ввиде List
 
         for i in range(threadCount):
             start = startPort + i * separation_size
@@ -138,7 +138,7 @@ class TCPSCAN:
             thread.join()
     
         if(printOut):
-            print("______________\n  OPEN-PORTS   \n______________")
-            print(instance._ANSWERED_PORTS)
+            print("______________\n  OPEN-UDP-PORTS   \n______________")
+            print(instance._OPEN_PORTS)
 
-        return instance._ANSWERED_PORTS
+        return instance._OPEN_PORTS
