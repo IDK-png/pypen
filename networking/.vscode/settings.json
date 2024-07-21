@@ -1,0 +1,9 @@
+{
+    "files.autoSave": "onFocusChange",
+    "python.testing.pytestArgs": [],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.testing.cwd": "${workspaceFolder}/tests",
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    "docwriter.style": "NumPy",
+}
