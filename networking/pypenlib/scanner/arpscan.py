@@ -2,7 +2,7 @@ from scapy.all import *
 import threading
 from pypenlib.scanner.iputils import IPUtils
 class ARPSCAN:
-    def __init__(instance, hostIP=IPUtils().get_local_IP(), timeout=0.1):
+    def __init__(instance, hostIP=IPUtils().get_external_IP(), timeout=0.5):
         '''This function initializes a network scanning tool using Scapy in Python, setting default values for
         local IP, Ethernet layer, answered hosts, threads, and disabling verbose output.
         
@@ -19,7 +19,7 @@ class ARPSCAN:
         '''
         instance._HOSTIP = hostIP # Default Gateaway, ну тупа роутер мне лень это объяснять
         instance._ETHER = Ether(dst="ff:ff:ff:ff:ff:ff",type="ARP") # Слой Ethernet, дист. неизвестна, тип пакета ARP 
-        instance._ANSWERED = [instance._HOSTIP] # Массив "Живых" Хостов(Добавлен сразу DefaultGateaway потому что с него отправляются ARP запросы)
+        instance._ANSWERED = [instance._HOSTIP, IPUtils().get_local_IP()] # Массив "Живых" Хостов(Добавлен сразу Default-Gateaway потому что с него отправляются ARP запросы)
         instance._THREADS = [] # Массив Потоков
         instance._TIMEOUT = float(timeout)
         conf.verb = 0 # Вырубает нахуй все принты ебучего Scapy
@@ -48,7 +48,7 @@ class ARPSCAN:
 
             PACKET_ITERATOR=0 # Итератор while-цикла
             while(PACKET_ITERATOR<3): # Из-за маленького timeout, пакет может дойти но не успеть отослать ответ, из-за этого отсылается 3 раза
-                ans, _ = srp(instance._ETHER/LocalARP, timeout=instance._TIMEOUT) # Отсылается пакет, с timeout в 100 милисекунд(0.1 Секунды)
+                ans, nan = srp(instance._ETHER/LocalARP, timeout=instance._TIMEOUT) # Отсылается пакет, с timeout в 100 милисекунд(0.1 Секунды)
                 if ans: # Если ответ получен
                     #_________________Для Дебага__________________
                     #    for sent, received in ans:
@@ -97,7 +97,7 @@ class ARPSCAN:
             if i == threadCount - 1:  # Если это последний поток
                 end += remainder  # Добавляем остаток к конечному IP-адресу, чтобы захватить оставшиеся IP-адреса
             separation.append([start, end])  # Добавляем диапазон [start, end] в список разделов
-        # Да мне лень было от комментировать 
+        # Да мне лень было это комментировать 
 
         for i in range(threadCount): # А тут уже создания самих потоков
             thread = threading.Thread(target=instance.scanUtil, args=(separation[i][0],separation[i][1])) # Сам поток, в который передаётся функция scanUtil, и диапозон IP текущего потока
@@ -106,9 +106,11 @@ class ARPSCAN:
         
         for thread in instance._THREADS:
             thread.join()
-    
-        if(printOut):
+
+        instance._ANSWERED.sort(key=lambda x: int(x.split(".")[3])) # Сортировка листа после завершения всех процессов 
+
+        if(printOut): # Вывод хостов 
             print("______________\n  LIVE-HOSTS  \n______________")
-            print(instance._ANSWERED)
+            print("\n".join(instance._ANSWERED))
 
         return instance._ANSWERED

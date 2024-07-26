@@ -70,13 +70,22 @@ class UDPSCAN:
             if(len(ans)): # Если был получен ответ(UDP/ICMP)
                 for send,receive in ans:
                     if((receive.haslayer(ICMP) and receive[ICMP].type==3 and receive[ICMP].code == 3)==False): # Если ответ не является ICMP пакетом с кодом ошибки Destination Unreachable тогда порт или open или flitered
-                            addStr = f"{x} | "
-                            if(receive.haslayer(UDP)): # Если в ответе есть UDP пакет, нету смысла проверять так как при ошибки не посылаются UDP пакеты
-                                receive[UDP].show()
-                                addStr+="open" # Порт - Open
+                            current_status = f""
+
+
+                            if(receive.haslayer(UDP) and receive[UDP].sport==x): # Если в ответе есть UDP пакет, нету смысла проверять так как при ошибки не посылаются UDP пакеты
+                                current_status+="open" # Порт - Open
                             elif(receive.haslayer(ICMP)): # Если в ответе ICMP
-                                addStr+="filtered" # Порт - Filtered
-                            instance._OPEN_PORTS.append(addStr)
+                                current_status+="filtered" # Порт - Filtered
+
+
+                            if(len(current_status)==0):
+                                if(instance._OPENSCAN):
+                                    instance._OF_PORTS.append(f"{x} | open-filtered") 
+                            else:
+                                instance._OPEN_PORTS.append(f"{x} | current_status")
+
+                                
             if(len(_) and instance._OPENSCAN): # Если был проигнорирован
                 instance._OF_PORTS.append(f"{x} | open-filtered") # Значит порт open-filtered
 
@@ -136,9 +145,20 @@ class UDPSCAN:
         
         for thread in instance._THREADS:
             thread.join()
-    
+
+        instance._OPEN_PORTS.sort(key=lambda x: int(x.split("|")[0])) # Сортировка листа после завершения всех процессов 
+        instance._OF_PORTS.sort(key=lambda x: int(x.split("|")[0])) # Сортировка листа после завершения всех процессов 
+
         if(printOut):
-            print("______________\n  OPEN-UDP-PORTS   \n______________")
-            print(instance._OPEN_PORTS)
+            print("______________\nOPEN UDP PORTS\n______________")
+            print("\n".join(instance._OPEN_PORTS))
+            print("_______________\nO/F UDP PORTS\n_______________")
+            if(scanOpenFiltered):
+                if(total_numbers+1!=len(list(set(instance._OF_PORTS)))):
+                    print(instance._OF_PORTS)
+                else:
+                    print(f"{total_numbers+1} Open/Filtered ports was found!")
+
+        instance._OPEN_PORTS.extend(instance._OF_PORTS)
 
         return instance._OPEN_PORTS

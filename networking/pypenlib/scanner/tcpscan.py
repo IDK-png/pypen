@@ -4,7 +4,7 @@ import sys
 import io
 from pypenlib.scanner.iputils import IPUtils
 class TCPSCAN:
-    def __init__(instance, dstIP, hostIP=IPUtils().get_local_IP(), ttlCount=15, timeout=0.5):
+    def __init__(instance, dstIP, hostIP=IPUtils().get_local_IP(), ttlCount=128, timeout=0.5):
         '''This Python function initializes an instance with default values for destination IP, host IP, TTL
         count, and timeout, setting up various attributes for network scanning using Scapy.
         
@@ -34,7 +34,7 @@ class TCPSCAN:
         instance._HOSTIP = hostIP # Default Gateaway, ну тупа роутер мне лень это объяснять
 
         instance._TRANSPORT_LAYER =  TCP(flags="S")                                       # TCP Протокол 
-        instance._NETWORK_LAYER= IP(src= IPUtils().get_external_IP(),dst=dstIP, ttl=(1,ttlCount)) # IP  Маршрутизатор 
+        instance._NETWORK_LAYER= IP(dst=dstIP, ttl=(1,ttlCount)) # IP  Маршрутизатор 
 
         instance._ANSWERED_PORTS = [] # Массив "Живых" Хостов(Добавлен сразу DefaultGateaway потому что с него отправляются ARP запросы)
         instance._THREADS = [] # Массив Потоков
@@ -63,24 +63,13 @@ class TCPSCAN:
             TCPRequest = instance._NETWORK_LAYER/instance._TRANSPORT_LAYER # Обычный TCP пакет с flag-SYN
             TCPRequest[TCP].dport = x
 
-            ans, _ = sr(TCPRequest, timeout=instance._TIMEOUT) # Отсылается пакет, с timeout в 100 милисекунд(0.1 Секунды)
-            if ans: # Если ответ получен
-                #_____________________________ЧТЕНИЯ ОТВЕТА_____________________________
-                capture = io.StringIO()
-                save_stdout = sys.stdout
-                sys.stdout = capture
-                print(f"{ans.summary(lambda s, r: r.sprintf('{TCP:%TCP.flags%}'))}")  # noqa
-                sys.stdout = save_stdout
-                #_______________________________________________________________________
-                PACKET_ITERATOR=0 # Итератор while-цикла
-                while(PACKET_ITERATOR<3): # Из-за маленького timeout, пакет может дойти но не успеть отослать ответ, из-за этого отсылается 3 раза
-                    if("SA" in capture.getvalue()):
-                        print(f"[+]", end=""); print(x); # Принтует port который был обнаружен как "открытый"
-                        instance._ANSWERED_PORTS.append(x) # Добавь в список живых хостов, дист. айпишник из оригинального пакета
-                        break
-                    PACKET_ITERATOR+=1
+            ans,_ = sr(TCPRequest, timeout=instance._TIMEOUT) # Отсылается пакет, с timeout в 100 милисекунд(0.1 Секунды)
 
-
+            for req,res in ans:
+                if(res.haslayer(TCP) and res.getlayer(TCP).flags & 2):
+                    instance._ANSWERED_PORTS.append(x)
+                    return 
+                    
     def scan(instance, threadCount, startPort=0, endPort=1500, printOut=True):
         '''The `scan` function in Python scans a range of ports using multiple threads and prints out the open
         ports if specified.
@@ -136,9 +125,11 @@ class TCPSCAN:
         
         for thread in instance._THREADS:
             thread.join()
-    
+
+        #instance._ANSWERED_PORTS.sort(key=lambda x: int(x.split(".")[3])) # Сортировка листа после завершения всех процессов 
+
         if(printOut):
-            print("______________\n  OPEN-PORTS   \n______________")
+            print("______________\n  OPEN-PORTS\n______________")
             print(instance._ANSWERED_PORTS)
 
         return instance._ANSWERED_PORTS

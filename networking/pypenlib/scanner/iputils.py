@@ -3,7 +3,7 @@ class IPUtils:
     def __init__(instance) -> None:
         # Нахуй тут конструктор не всрался
         pass
-    def get_local_IP(instance) -> str:
+    def get_external_IP(instance) -> str:
         '''The function `get_local_network` retrieves the first local network IP address from a list of routes.
         
         Parameters
@@ -25,7 +25,7 @@ class IPUtils:
             if(currentNetwork.split('.')[0] in IPv4ranges): # Если айпишник входит в диапозон то...
                 return currentNetwork         # Добавляй в список
 
-    def get_external_IP(instance) -> str:
+    def get_local_IP(instance) -> str:
         IPv4ranges = ["192","172","10"] # Единственные три диапозона IPv4 в локальных сетях, если у вас другой то идите нахуй, выживайте сами как-то, хитровыебанные блять.
         for x in read_routes(): # Смотрит все маршруты в сети
             currentNetwork = x[2] # Выбирает только IP из всего Tuple'а
